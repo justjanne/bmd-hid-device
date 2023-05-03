@@ -1,5 +1,6 @@
 /sample/
-/.idea/
-/*.iml
+/.idea
+*.iml
 __pycache__
 *.pyc
+.mypy_cache
