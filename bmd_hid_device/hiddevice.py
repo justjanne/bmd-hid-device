@@ -1,13 +1,13 @@
 import abc
 from typing import Optional
 
-from .devices import BmdDeviceId
 from .inputhandler import InputEventHandler
 from .ledstatehandler import LedStateHandler
 from .protocol.events import OnJogEvent, OnKeyEvent, OnBatteryEvent
 from .protocol.requests import SetLedRequest, SetJogLedRequest, SetJogModeRequest
 from .protocol.types import BmdHidJogMode, BmdHidKey, BmdHidLed, BmdHidJogLed
 from .rawdevice import BmdRawDevice
+from .util.deviceinfo import HidDeviceInfo
 
 
 class BmdHidDevice(abc.ABC):
@@ -16,8 +16,8 @@ class BmdHidDevice(abc.ABC):
     leds: LedStateHandler
     held_keys: list[BmdHidKey]
 
-    def __init__(self, device_id: BmdDeviceId):
-        self._device = BmdRawDevice(device_id)
+    def __init__(self, device_info: HidDeviceInfo):
+        self._device = BmdRawDevice(device_info)
         self._device.authenticate()
         self.held_keys = []
 

@@ -5,10 +5,10 @@ from typing import Optional
 import hid
 
 from .auth import Authenticator
-from .devices import BmdDeviceId
 from .protocol.events import OnInputEvent, OnInputEvents
 from .protocol.features import DeviceFeatureMessages, DeviceFeatureMessage, SerialFeatureMessage
 from .protocol.requests import SetConfigRequest, SetConfigRequests
+from .util.deviceinfo import HidDeviceInfo
 from .util.messagehandler import MessageHandler
 
 
@@ -23,8 +23,9 @@ class BmdRawDevice:
     serial: str
     timeout: int = 0
 
-    def __init__(self, device: BmdDeviceId):
-        self.dev = hid.Device(device.vid, device.pid)
+    def __init__(self, device_info: HidDeviceInfo):
+        self.dev = hid.Device(vid=device_info["vendor_id"], pid=device_info["product_id"],
+                              serial=device_info["serial_number"])
         self.on_input_event_handler = MessageHandler(OnInputEvents)
         self.set_config_request_handler = MessageHandler(SetConfigRequests)
         self.device_feature_handler = MessageHandler(DeviceFeatureMessages)
