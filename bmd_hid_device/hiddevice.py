@@ -16,11 +16,13 @@ class BmdHidDevice(abc.ABC):
     _device: BmdRawDevice
     _input: InputEventHandler
     leds: LedStateHandler
+    held_keys: list[BmdHidKey]
 
     def __init__(self, device_id: BmdDeviceId):
         self._timer = None
         self._device = BmdRawDevice(device_id)
         self._device.authenticate()
+        self.held_keys = []
         print(self)
 
         self._input = InputEventHandler(self.on_key_down, self.on_key_up)
@@ -73,6 +75,7 @@ class BmdHidDevice(abc.ABC):
             self.on_jog_event(message.mode, message.value)
         elif isinstance(message, OnKeyEvent):
             self._input.update(set(message.keys))
+            self.held_keys = message.keys
         elif isinstance(message, OnBatteryEvent):
             self.on_battery(message.charging, message.level)
         else:

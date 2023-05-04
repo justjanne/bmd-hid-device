@@ -14,11 +14,11 @@ class JogMode(enum.IntEnum):
 
     def mode(self) -> BmdHidJogMode:
         if self == JogMode.SHTL:
-            return BmdHidJogMode.RELATIVE
+            return BmdHidJogMode.ABSOLUTE
         elif self == JogMode.JOG:
-            return BmdHidJogMode.ABSOLUTE
+            return BmdHidJogMode.RELATIVE
         elif self == JogMode.SCRL:
-            return BmdHidJogMode.ABSOLUTE
+            return BmdHidJogMode.RELATIVE
         else:
             raise Exception("Unknown jog mode: {0}".format(self))
 
