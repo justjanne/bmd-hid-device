@@ -1,10 +1,10 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 name = "bmd-hid-device"
 description = "library to provide access to blackmagicdesign hid devices"
 
 setup(name=name,
-      version="0.1.6",
+      version="0.1.7",
       description=description,
       url="https://github.com/justjanne/bmd-hid-device",
       project_urls={
@@ -12,7 +12,7 @@ setup(name=name,
           "Issue tracker": "https://github.com/justjanne/bmd-hid-device/issues",
       },
       install_requires=["hid"],
-      packages=['bmd_hid_device'],
+      packages=find_packages(),
       package_data={'bmd_hid_device': ['py.typed']},
       license="Apache-2.0 license",
       classifiers=[
