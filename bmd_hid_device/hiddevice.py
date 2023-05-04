@@ -18,11 +18,13 @@ class BmdHidDevice(abc.ABC):
 
     def __init__(self, device_info: HidDeviceInfo):
         self._device = BmdRawDevice(device_info)
-        self._device.authenticate()
         self.held_keys = []
 
         self._input = InputEventHandler(self.on_key_down, self.on_key_up)
         self.leds = LedStateHandler(self._on_update_system_leds, self._on_update_jog_leds)
+
+    def device_info(self) -> HidDeviceInfo:
+        return self._device.device_info
 
     def __str__(self):
         return "BmdHidDevice({0}, timeout {1} sec)".format(self._device, self._device.timeout)

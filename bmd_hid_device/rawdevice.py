@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 import threading
-from typing import Optional
+from typing import Optional, Callable
 
 import hid
 
 from .auth import Authenticator
 from .protocol.events import OnInputEvent, OnInputEvents
-from .protocol.features import DeviceFeatureMessages, DeviceFeatureMessage, SerialFeatureMessage
+from .protocol.features import DeviceFeatureMessage, DeviceFeatureMessages
 from .protocol.requests import SetConfigRequest, SetConfigRequests
 from .util.deviceinfo import HidDeviceInfo
 from .util.messagehandler import MessageHandler
@@ -14,7 +14,9 @@ from .util.messagehandler import MessageHandler
 
 class BmdRawDevice:
     dev: Optional[hid.Device]
-    scheduler: Optional[threading.Timer] = None
+    device_info: HidDeviceInfo
+    on_close: Optional[Callable[[], None]]
+    authenticator: Authenticator
 
     on_input_event_handler: MessageHandler[OnInputEvent]
     set_config_request_handler: MessageHandler[SetConfigRequest]
@@ -23,15 +25,31 @@ class BmdRawDevice:
     serial: str
     timeout: int = 0
 
-    def __init__(self, device_info: HidDeviceInfo):
-        self.dev = hid.Device(vid=device_info["vendor_id"], pid=device_info["product_id"],
-                              serial=device_info["serial_number"])
+    def __init__(self, device_info: HidDeviceInfo, on_close: Optional[Callable[[], None]] = None):
+        try:
+            self.dev = hid.Device(
+                vid=device_info["vendor_id"],
+                pid=device_info["product_id"],
+                serial=device_info["serial_number"]
+            )
+        except hid.HIDException as e:
+            self.close()
+            raise e
         self.on_input_event_handler = MessageHandler(OnInputEvents)
         self.set_config_request_handler = MessageHandler(SetConfigRequests)
         self.device_feature_handler = MessageHandler(DeviceFeatureMessages)
 
+        self.on_close = on_close
+        self.device_info = device_info
+        self.authenticator = Authenticator(self.poll_feature, self.send_feature, 2000, self.close)
+        self.authenticator.start()
+
     def __str__(self):
-        return "{0} {1}, {2}".format(self.dev.manufacturer, self.dev.product, self.serial)
+        return "{0} {1}, {2}".format(
+            self.device_info["manufacturer_string"],
+            self.device_info["product_string"],
+            self.device_info["serial_number"]
+        )
 
     def __enter__(self):
         return self
@@ -43,42 +61,57 @@ class BmdRawDevice:
         return self.dev is None
 
     def close(self):
-        if self.scheduler is not None:
-            self.scheduler.cancel()
-            self.scheduler.join()
-            self.scheduler = None
         if self.dev is not None:
             self.dev.close()
             self.dev = None
+        self.authenticator.stop()
+        if self.on_close is not None:
+            self.on_close()
 
     def poll(self, timeout: Optional[int] = None) -> Optional[OnInputEvent]:
-        if self.dev is None:
-            raise IOError("device is closed")
-        data = self.dev.read(4096, timeout=timeout)
+        if self.isclosed():
+            raise hid.HIDException("device is closed")
+        try:
+            data = self.dev.read(4096, timeout=timeout)
+        except hid.HIDException as e:
+            self.close()
+            raise e
         if data is None:
             return None
         return self.on_input_event_handler.parse(data)
 
     def send(self, message: SetConfigRequest):
-        if self.dev is None:
-            raise IOError("device is closed")
-        self.dev.write(self.set_config_request_handler.serialize(message))
+        if self.isclosed():
+            raise hid.HIDException("device is closed")
+        try:
+            self.dev.write(self.set_config_request_handler.serialize(message))
+        except hid.HIDException as e:
+            self.close()
+            raise e
 
-    def authenticate(self):
-        # TODO: parse feature report 1 (length 8), used for unknown purposes
-        serial_message = self.device_feature_handler.parse(self.dev.get_feature_report(8, 33))
-        if not isinstance(serial_message, SerialFeatureMessage):
-            raise IOError("Could not parse serial message")
-        if serial_message.device_serial != self.dev.serial:
-            raise IOError("Device serial and descriptor serial do not match: {0}, {1}".format(
-                serial_message.device_serial,
-                self.dev.serial
-            ))
-        self.serial = serial_message.device_serial
-        self.__authenticate()
+    def poll_feature(self):
+        if self.isclosed():
+            raise hid.HIDException("device is closed")
+        try:
+            data = self.dev.get_feature_report(6, 10)
+        except hid.HIDException as e:
+            self.close()
+            raise e
+        if data is None:
+            return None
+        return self.device_feature_handler.parse(data)
+
+    def send_feature(self, message: DeviceFeatureMessage):
+        if self.isclosed():
+            raise hid.HIDException("device is closed")
+        try:
+            self.dev.send_feature_report(self.device_feature_handler.serialize(message))
+        except hid.HIDException as e:
+            self.close()
+            raise e
 
     def __authenticate(self):
-        self.timeout = Authenticator(self.dev).authenticate()
+        self.timeout = self.authenticator.authenticate()
         # reauthenticate 10 seconds before the timeout
         self.scheduler = threading.Timer(self.timeout - 10, self.__authenticate)
         self.scheduler.start()
