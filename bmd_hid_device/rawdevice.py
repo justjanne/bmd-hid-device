@@ -50,15 +50,17 @@ class BmdRawDevice:
             self.dev.close()
             self.dev = None
 
-    def poll(self, timeout=None) -> Optional[OnInputEvent]:
+    def poll(self, timeout: Optional[int] = None) -> Optional[OnInputEvent]:
         if self.dev is None:
-            raise IOError("device is closed: {0}".format(self))
+            raise IOError("device is closed")
         data = self.dev.read(4096, timeout=timeout)
+        if data is None:
+            return None
         return self.on_input_event_handler.parse(data)
 
     def send(self, message: SetConfigRequest):
         if self.dev is None:
-            raise IOError("device is closed: {0}".format(self))
+            raise IOError("device is closed")
         self.dev.write(self.set_config_request_handler.serialize(message))
 
     def authenticate(self):

@@ -1,5 +1,4 @@
 import abc
-import threading
 from typing import Optional
 
 from .devices import BmdDeviceId
@@ -12,18 +11,15 @@ from .rawdevice import BmdRawDevice
 
 
 class BmdHidDevice(abc.ABC):
-    _timer: Optional[threading.Timer]
     _device: BmdRawDevice
     _input: InputEventHandler
     leds: LedStateHandler
     held_keys: list[BmdHidKey]
 
     def __init__(self, device_id: BmdDeviceId):
-        self._timer = None
         self._device = BmdRawDevice(device_id)
         self._device.authenticate()
         self.held_keys = []
-        print(self)
 
         self._input = InputEventHandler(self.on_key_down, self.on_key_up)
         self.leds = LedStateHandler(self._on_update_system_leds, self._on_update_jog_leds)
@@ -69,8 +65,10 @@ class BmdHidDevice(abc.ABC):
     def _on_update_jog_leds(self, leds: BmdHidJogLed):
         self._device.send(SetJogLedRequest(leds))
 
-    def poll(self):
-        message = self._device.poll()
+    def poll(self, timeout: Optional[int] = None):
+        message = self._device.poll(timeout)
+        if message is None:
+            return
         if isinstance(message, OnJogEvent):
             self.on_jog_event(message.mode, message.value)
         elif isinstance(message, OnKeyEvent):
@@ -88,14 +86,3 @@ class BmdHidDevice(abc.ABC):
             except KeyboardInterrupt:
                 print("Thread interrupted via keyboard")
                 break
-
-    def launch(self):
-        if self._timer is not None:
-            raise Exception("already running {0}".format(self))
-        self._timer = threading.Timer(interval=0.01, function=self.poll_forever)
-        self._timer.start()
-
-    def stop(self):
-        if self._timer is not None:
-            print("Stopping device {0}".format(self))
-            self._timer.cancel()
