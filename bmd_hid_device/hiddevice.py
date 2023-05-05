@@ -67,10 +67,10 @@ class BmdHidDevice(abc.ABC):
     def _on_update_jog_leds(self, leds: BmdHidJogLed):
         self._device.send(SetJogLedRequest(leds))
 
-    def poll(self, timeout: Optional[int] = None):
+    def poll(self, timeout: Optional[int] = None) -> bool:
         message = self._device.poll(timeout)
         if message is None:
-            return
+            return False
         if isinstance(message, OnJogEvent):
             self.on_jog_event(message.mode, message.value)
         elif isinstance(message, OnKeyEvent):
@@ -80,6 +80,11 @@ class BmdHidDevice(abc.ABC):
             self.on_battery(message.charging, message.level)
         else:
             raise Exception("Unhandled message {0}".format(type(message)))
+        return True
+
+    def poll_available(self):
+        while self.poll(0):
+            pass
 
     def poll_forever(self):
         while True:

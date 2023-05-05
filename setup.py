@@ -4,7 +4,7 @@ name = "bmd-hid-device"
 description = "library to provide access to blackmagicdesign hid devices"
 
 setup(name=name,
-      version="0.1.7",
+      version="0.1.8",
       description=description,
       url="https://github.com/justjanne/bmd-hid-device",
       project_urls={
