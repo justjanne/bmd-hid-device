@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import threading
 from typing import Optional, Callable
 
 import hid
@@ -16,7 +15,7 @@ class BmdRawDevice:
     dev: Optional[hid.Device]
     device_info: HidDeviceInfo
     on_close: Optional[Callable[[], None]]
-    authenticator: Authenticator
+    authenticator: Optional[Authenticator]
 
     on_input_event_handler: MessageHandler[OnInputEvent]
     set_config_request_handler: MessageHandler[SetConfigRequest]
@@ -26,6 +25,14 @@ class BmdRawDevice:
     timeout: int = 0
 
     def __init__(self, device_info: HidDeviceInfo, on_close: Optional[Callable[[], None]] = None):
+        self.dev = None
+        self.device_info = device_info
+        self.on_close = on_close
+        self.authenticator = None
+
+        self.on_input_event_handler = MessageHandler(OnInputEvents)
+        self.set_config_request_handler = MessageHandler(SetConfigRequests)
+        self.device_feature_handler = MessageHandler(DeviceFeatureMessages)
         try:
             self.dev = hid.Device(
                 vid=device_info["vendor_id"],
@@ -35,12 +42,6 @@ class BmdRawDevice:
         except hid.HIDException as e:
             self.close()
             raise e
-        self.on_input_event_handler = MessageHandler(OnInputEvents)
-        self.set_config_request_handler = MessageHandler(SetConfigRequests)
-        self.device_feature_handler = MessageHandler(DeviceFeatureMessages)
-
-        self.on_close = on_close
-        self.device_info = device_info
         self.authenticator = Authenticator(self.poll_feature, self.send_feature, 2000, self.close)
         self.authenticator.start()
 
@@ -64,7 +65,8 @@ class BmdRawDevice:
         if self.dev is not None:
             self.dev.close()
             self.dev = None
-        self.authenticator.stop()
+        if self.authenticator is not None:
+            self.authenticator.stop()
         if self.on_close is not None:
             self.on_close()
 
@@ -109,10 +111,3 @@ class BmdRawDevice:
         except hid.HIDException as e:
             self.close()
             raise e
-
-    def __authenticate(self):
-        self.timeout = self.authenticator.authenticate()
-        # reauthenticate 10 seconds before the timeout
-        self.scheduler = threading.Timer(self.timeout - 10, self.__authenticate)
-        self.scheduler.start()
-        return self.timeout
